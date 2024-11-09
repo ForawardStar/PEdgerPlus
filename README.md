@@ -5,11 +5,14 @@ Edge detection, serving as a crucial component in numerous vision-based applicat
 
 # Training
 Before starting the training process, run:
+
 ```python lmdb_io.py```
 
 If you want to train our PEdger++, run:
+
 ```python train.py```
 
 # Testing
 If you want to test our pre-trained mode, run:
+
 ```python test_edge.py```
