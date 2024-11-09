@@ -1,129 +1,268 @@
 """
-Examples for reading LMDBs.
-
-.. argparse::
-   :ref: examples.lmdb_io.get_parser
-   :prog: lmdb_io
+Module for comfortably reading and writing LMDBs.
 """
 
-import os
-import cv2
-import argparse
+import lmdb
+import numpy
+import re
 
-# To silence Caffe! Must be added before importing Caffe or modules which
-# are importing Caffe.
-os.environ['GLOG_minloglevel'] = '0'
-import tools.lmdb_io
+import caffe
 
-def get_parser():
+def version_compare(version_a, version_b):
     """
-    Get the parser.
+    Compare two versions given as strings, taken from `here`_.
     
-    :return: parser
-    :rtype: argparse.ArgumentParser
-    """
+    .. _here: http://stackoverflow.com/questions/1714027/version-number-comparison
     
-    parser = argparse.ArgumentParser(description = 'Read LMDBs.')
-    parser.add_argument('--mode', default = 'write')
-    parser.add_argument('--lmdb', default = 'examples/bsds500/train_lmdb', type = str,
-                       help = 'path to input LMDB')
-    parser.add_argument('--output', default = 'examples/output', type = str,
-                        help = 'output directory')
-    parser.add_argument('--limit', default = 100, type = int,
-                        help = 'limit the number of images to read')
-                       
-    return parser
-
-def main_statistics():
+    :param version_a: version a
+    :type version_a: string
+    :param version_b: version b
+    :type version_b: string
+    :return: 0 if versions are equivalent, < 0 if version_a is lower than version_b
+        , > 0 if version_b is lower than version_b
     """
-    Read and print the size of an LMDB.
-    """
+    def normalize(v):
+        return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+        
+    return cmp(normalize(version_a), normalize(version_b))
     
-    lmdb = tools.lmdb_io.LMDB(args.lmdb)
-    print(lmdb.count())
-
-def main_read():
+def to_key(i):
     """
-    Read up to ``--limit`` images from the LMDB.
+    Transform the given id integer to the key used by :class:`lmdb_io.LMDB`.
+    
+    :param i: integer id
+    :type i: int
+    :return: string key
+    :rtype: string
     """
     
-    lmdb = tools.lmdb_io.LMDB(args.lmdb)
-    keys = lmdb.keys()
-    
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
-    
-    with open(args.output + '/labels.txt', 'w') as f:
-        for n in range(min(len(keys), args.limit)):
-            image, label, key = lmdb.read_single(keys[n])
-            image_path = args.output + '/' + keys[n] + '.png'
-            cv2.imwrite(image_path, image)
-            f.write(image_path + ': ' + str(label) + '\n')
+    return '{:08}'.format(i)
 
-def main_write():
+class LMDB:
     """
-    Read up to ``--limit`` images from the LMDB.
+    Utility class to read and write LMDBs. The code is based on the `LMDB documentation`_,
+    as well as `this blog post`_.
+    
+    .. _LMDB documentation: https://lmdb.readthedocs.io/en/release/
+    .. _this blog post: http://deepdish.io/2015/04/28/creating-lmdb-in-python/
     """
+    
+    def __init__(self, lmdb_path):
+        """
+        Constructor, given LMDB path.
+        
+        :param lmdb_path: path to LMDB
+        :type lmdb_path: string
+        """
+        
+        self._lmdb_path = lmdb_path
+        """ (string) The path to the LMDB to read or write. """
+        
+        self._write_pointer = 0
+        self._write_pointer_gt = 0
+        """ (int) Pointer for writing and appending. """
+        
+    def read(self, key = ''):
+        """
+        Read a single element or the whole LMDB depending on whether 'key'
+        is specified. Essentially a prox for :func:`lmdb.LMDB.read_single`
+        and :func:`lmdb.LMDB.read_all`.
+        
+        :param key: key as 8-digit string of the entry to read
+        :type key: string
+        :return: data and labels from the LMDB as associate dictionaries, where
+            the key as string is the dictionary key and the value the numpy.ndarray
+            for the data and the label for the labels
+        :rtype: ({string: numpy.ndarray}, {string: float})
+        """
+        
+        if not key:
+            return self.read_all();
+        else:
+            return self.read_single(key);
+        
+    def read_single(self, key):
+        """
+        Read a single element according to the given key. Note that data in an
+        LMDB is organized using string keys, which are eight-digit numbers
+        when using this class to write and read LMDBs.
 
-    lmdb = tools.lmdb_io.LMDB(args.lmdb)
-
-    scale_type = ['aug_data', 'aug_data_scale_0.5', 'aug_data_scale_1.5']
-
-    rotate_type = ['0.0_1_0',  '112.5_1_0',  '135.0_1_0',  '157.5_1_0',  '180.0_1_0',  '202.5_1_0',  '225.0_1_0',  '22.5_1_0',  '247.5_1_0',  '270.0_1_0',  '292.5_1_0',  '315.0_1_0',  '337.5_1_0',  '45.0_1_0',  '67.5_1_0',  '90.0_1_0', '0.0_1_1',  '112.5_1_1',  '135.0_1_1',  '157.5_1_1',  '180.0_1_1',  '202.5_1_1',  '225.0_1_1',  '22.5_1_1',  '247.5_1_1',  '270.0_1_1',  '292.5_1_1',  '315.0_1_1',  '337.5_1_1',  '45.0_1_1',  '67.5_1_1',  '90.0_1_1']
-
-    filenames = os.listdir("/home/fyb/HED-BSDS/train/aug_data/0.0_1_0/")
-
-    data_root = "/home/fyb/HED-BSDS/train/"
-
-    images = []
-    edges = []
-    for scale in scale_type:
-        for rotate in rotate_type:
-            for filename in filenames:
-                data_path = data_root + scale + "/" + rotate + "/"+ filename
-                gt_path = data_root + scale.replace("data", "gt") + "/" + rotate + "/"+ filename.replace(".jpg", ".png")
-                images.append(cv2.imread(data_path))
-                edges.append(cv2.imread(gt_path))
+        :param key: the key to read
+        :type key: string
+        :return: image, label and corresponding key
+        :rtype: (numpy.ndarray, int, string)
+        """
+        
+        image = False
+        label = False
+        env = lmdb.open(self._lmdb_path, readonly = True)
+        
+        with env.begin() as transaction:
+            raw = transaction.get(key)
+            datum = caffe.proto.caffe_pb2.Datum()
+            datum.ParseFromString(raw)
+            
+            label = datum.label
+            if datum.data:
+                image = numpy.fromstring(datum.data, dtype = numpy.uint8).reshape(datum.channels, datum.height, datum.width).transpose(1, 2, 0)
+            else:
+                image = numpy.array(datum.float_data).astype(numpy.float).reshape(datum.channels, datum.height, datum.width).transpose(1, 2, 0)
                 
-    print("Finishing reading images")
+        return image, label, key
+        
+    def read_all(self):
+        """
+        Read the whole LMDB. The method will return the data and labels (if
+        applicable) as dictionary which is indexed by the eight-digit numbers
+        stored as strings.
 
-    lmdb.write(images, edges)
-
-
-def main_write_test():
-    """
-    Read up to ``--limit`` images from the LMDB.
-    """
-
-    lmdb = tools.lmdb_io.LMDB(args.lmdb)
-
-    image_root = "/home/fyb/HED-BSDS/test/"
-    gt_root = "/home/fyb/HED-BSDS/groundTruth_png/"
-
-    filenames = os.listdir(image_root)
-
-    images = []
-    edges = []
-    for filename in filenames:
-        data_path = image_root + filename
-        gt_path =  gt_root + filename.replace(".jpg", ".png")
-        images.append(cv2.imread(data_path))
-        edges.append(cv2.imread(gt_path, 0))
-    print("Finishing reading images")
-
-    lmdb.write(images, edges, 'TEST')
-
-if __name__ == '__main__':
-    parser = get_parser()
-    args = parser.parse_args()
+        :return: images, labels and corresponding keys
+        :rtype: ([numpy.ndarray], [int], [string])
+        """
+        
+        images = []
+        labels = []
+        keys = []
+        env = lmdb.open(self._lmdb_path, readonly = True)
+        
+        with env.begin() as transaction:
+            cursor = transaction.cursor();
+            
+            for key, raw in cursor:
+                datum = caffe.proto.caffe_pb2.Datum()
+                datum.ParseFromString(raw)
+                
+                label = datum.label
+                
+                if datum.data:
+                    image = numpy.fromstring(datum.data, dtype = numpy.uint8).reshape(datum.channels, datum.height, datum.width).transpose(1, 2, 0)
+                else:
+                    image = numpy.array(datum.float_data).astype(numpy.float).reshape(datum.channels, datum.height, datum.width).transpose(1, 2, 0)
+                
+                images.append(image)
+                labels.append(label)
+                keys.append(key)
+        
+        return images, labels, keys
     
-    if args.mode == 'read':
-        main_read()
-    elif args.mode == 'write':
-        main_write()
-    elif args.mode == 'write_test':
-        main_write_test()
-    elif args.mode == 'statistics':
-        main_statistics()
-    else:
-        print('Invalid mode.')
+    def count(self):
+        """
+        Get the number of elements in the LMDB.
+        
+        :return: count of elements
+        :rtype: int
+        """
+        
+        env = lmdb.open(self._lmdb_path)
+        with env.begin() as transaction:
+            return transaction.stat()['entries']
+        
+    def keys(self, n = 0):
+        """
+        Get the first n (or all) keys of the LMDB
+        
+        :param n: number of keys to get, 0 to get all keys
+        :type n: int
+        :return: list of keys
+        :rtype: [string]
+        """
+        
+        keys = []
+        env = lmdb.open(self._lmdb_path, readonly = True)
+        
+        with env.begin() as transaction:
+            cursor = transaction.cursor()
+            
+            i = 0
+            for key, value in cursor:
+                
+                if i >= n and n > 0:
+                    break;
+                
+                keys.append(key)
+                i += 1
+        
+        return keys
+    
+    def write(self, images, edges, phase='TRAIN'):
+        """
+        Write a single image or multiple images and the corresponding label(s).
+        The imags are expected to be two-dimensional NumPy arrays with
+        multiple channels (if applicable).
+        
+        :param images: input images as list of numpy.ndarray with height x width x channels
+        :type images: [numpy.ndarray]
+        :param labels: corresponding labels (if applicable) as list
+        :type labels: [float]
+        :return: list of keys corresponding to the written images
+        :rtype: [string]
+        """
+        
+        if len(edges) > 0:
+            assert len(images) == len(edges)
+        
+        keys = []
+        env = lmdb.open(self._lmdb_path, map_size = max(1099511627776, len(images)*images[0].nbytes))
+        
+        self._write_pointer = 0
+        with env.begin(write = True) as transaction:
+            for i in range(len(images)):
+                # write input images
+                datum = caffe.proto.caffe_pb2.Datum()
+                datum.channels = images[i].shape[2]
+                datum.height = images[i].shape[0]
+                datum.width = images[i].shape[1]
+                print("images[{}] shape:{}".format(i, images[i].shape))
+                
+                #assert version_compare(numpy.version.version, '1.9') < 0, "installed numpy is 1.9 or higher, change .tostring() to .tobytes()"
+                assert images[i].dtype == numpy.uint8 or images[i].dtype == numpy.float, "currently only numpy.uint8 and numpy.float images are supported"
+                
+                if images[i].dtype == numpy.uint8:
+                    datum.data = images[i].transpose(2, 0, 1).tostring()
+                else:
+                    datum.float_data.extend(images[i].transpose(2, 0, 1).flat)
+        
+                #if len(labels) > 0:
+                #    datum.label = labels[i]
+                
+                key = to_key(self._write_pointer)
+                keys.append(key)
+                
+                transaction.put(key.encode('ascii'), datum.SerializeToString());
+
+                self._write_pointer += 1
+
+       
+        keys_gt = []
+        lmdb_path_gt = self._lmdb_path.replace("lmdb", "gt_lmdb")
+        env_gt = lmdb.open(lmdb_path_gt, map_size = max(1099511627776, len(edges)*edges[0].nbytes))
+
+        self._write_pointer_gt = 0
+        with env_gt.begin(write = True) as transaction_gt:
+            for i in range(len(edges)):
+                # write input images
+                datum_gt = caffe.proto.caffe_pb2.Datum()
+                print("edges[{}] shape:{}".format(i, edges[i].shape))
+
+                datum_gt.channels = edges[i].shape[2]
+                datum_gt.height = edges[i].shape[0]
+                datum_gt.width = edges[i].shape[1]
+
+                #assert version_compare(numpy.version.version, '1.9') < 0, "installed numpy is 1.9 or higher, change .tostring() to .tobytes()"
+                assert edges[i].dtype == numpy.uint8 or edges[i].dtype == numpy.float, "currently only numpy.uint8 and numpy.float images are supported"
+
+                if edges[i].dtype == numpy.uint8:
+                    datum_gt.data = edges[i].transpose(2, 0, 1).tostring()
+                else:
+                    datum_gt.float_data.extend(edges[i].transpose(2, 0, 1).flat)
+
+                
+                key_gt = to_key(self._write_pointer_gt)
+                keys_gt.append(key_gt)
+
+                transaction_gt.put(key_gt.encode('ascii'), datum_gt.SerializeToString());
+
+                self._write_pointer_gt += 1
+
+
+        return keys, keys_gt
