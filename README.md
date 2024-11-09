@@ -13,6 +13,6 @@ If you want to train our PEdger++, run:
 ```python train.py```
 
 # Testing
-If you want to test our pre-trained mode, run:
+If you want to test our pre-trained model, run:
 
 ```python test_edge.py```
