@@ -19,11 +19,15 @@ Before starting the training process, run:
 
 ```python lmdb_io.py```
 
-If you want to train our PEdger++, run:
+If you want to train our PEdger++, change the data path of training images, and then run:
 
 ```python train.py```
 
 # Testing
-If you want to test our pre-trained model, run:
+If you want to test our pre-trained model, change the data path of testing images, and then run:
 
 ```python test_edge.py```
+
+# Evaluation
+The matlab code for evaluation can be downloaded in https://www2.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/resources.html. Before evaluation, the non-maximum suppression should be done through running ``edge_nms.m" in https://github.com/yun-liu/RCF.  The codes for plotting Precision-Recall curves are in https://github.com/yun-liu/plot-edge-pr-curves.
+
