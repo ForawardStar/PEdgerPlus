@@ -6,7 +6,9 @@ Edge detection, serving as a crucial component in numerous vision-based applicat
 
 # Environment Installation
 To install the packages and dependencies,  run:
+
 ```bash install.sh```
+
  All the pakcages can be prepared after running "install.sh". 
 
 
