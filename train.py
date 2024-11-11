@@ -31,9 +31,9 @@ def get_parser():
                         help = 'Mode to run: "extract", "subsample_test" or "train"')
     parser.add_argument('--working_directory', default = 'examples/bsds500', type = str,
                        help = 'path to the working directory, see documentation of this example')
-    parser.add_argument('--train_lmdb', default = 'examples/bsds500/test_lmdb', type = str,
+    parser.add_argument('--train_lmdb', default = 'examples/bsds500/train_lmdb', type = str,
                        help = 'path to train LMDB')
-    parser.add_argument('--train_gt_lmdb', default = 'examples/bsds500/test_gt_lmdb', type = str,
+    parser.add_argument('--train_gt_lmdb', default = 'examples/bsds500/train_gt_lmdb', type = str,
                        help = 'path to ground truth LMDB')
     parser.add_argument('--test_lmdb', default = 'examples/bsds500/test_lmdb', type = str,
                        help = 'path to test LMDB')
@@ -226,7 +226,7 @@ def main_train():
         net.stage1_pool = caffe.layers.Pooling(net.stage1_relu4, pool=caffe.params.Pooling.MAX, kernel_size=2, stride=2)
 
         # Stage 2
-        net.stage2_conv1 = residual_block(net.stage1_relu4, num_output=16, prefix='stage2_conv1')
+        net.stage2_conv1 = residual_block(net.stage1_pool, num_output=16, prefix='stage2_conv1')
         net.stage2_relu1 = caffe.layers.ReLU(net.stage2_conv1, in_place = True)
         net.stage2_conv2 = residual_block(net.stage2_relu1, num_output=16, prefix='stage2_conv2')
         net.stage2_relu2 = caffe.layers.ReLU(net.stage2_conv2, in_place = True)
@@ -242,7 +242,7 @@ def main_train():
         
 
         # Stage 3
-        net.stage3_conv1 = residual_block(net.stage2_relu6, num_output=16, prefix='stage3_conv1')
+        net.stage3_conv1 = residual_block(net.stage2_pool, num_output=16, prefix='stage3_conv1')
         net.stage3_relu1 = caffe.layers.ReLU(net.stage3_conv1, in_place = True)
         net.stage3_conv2 = residual_block(net.stage3_relu1, num_output=16, prefix='stage3_conv2')
         net.stage3_relu2 = caffe.layers.ReLU(net.stage3_conv2, in_place = True)
@@ -265,7 +265,7 @@ def main_train():
 
 
         # Stage 4
-        net.stage4_conv1 = residual_block(net.stage3_relu9, num_output=16, prefix='stage4_conv1')
+        net.stage4_conv1 = residual_block(net.stage3_pool, num_output=16, prefix='stage4_conv1')
         net.stage4_relu1 = caffe.layers.ReLU(net.stage4_conv1, in_place = True)
         net.stage4_conv2 = residual_block(net.stage4_relu1, num_output=16, prefix='stage4_conv2')
         net.stage4_relu2 = caffe.layers.ReLU(net.stage4_conv2, in_place = True)
@@ -285,7 +285,7 @@ def main_train():
         net.stage4_relu9 = caffe.layers.ReLU(net.stage4_conv9, in_place = True)
         net.stage4_conv10 = residual_block(net.stage4_relu9, num_output=16, prefix='stage4_conv10')
         net.stage4_relu10 = caffe.layers.ReLU(net.stage4_conv10, in_place = True)
-        net.stage4_pool = caffe.layers.Pooling(net.stage4_relu10, pool=caffe.params.Pooling.MAX, kernel_size=2, stride=2, pad=0)
+        #net.stage4_pool = caffe.layers.Pooling(net.stage4_relu10, pool=caffe.params.Pooling.MAX, kernel_size=2, stride=2, pad=0)
 
         # Decoding 1
         net.decoding1_s2d_conv1 = caffe.layers.Convolution(net.stage1_relu4, kernel_size = 3, pad=1, num_output = 8,
@@ -371,15 +371,15 @@ def main_train():
         net.deconv2_s2d = caffe.layers.Deconvolution(net.decoding2_s2d_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])
         net.deconv2_d2s = caffe.layers.Deconvolution(net.decoding2_d2s_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])
 
-        net.deconv3_s2d = caffe.layers.Deconvolution(net.decoding3_s2d_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])
-        net.deconv3_d2s = caffe.layers.Deconvolution(net.decoding3_d2s_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])
+        net.deconv3_s2d = caffe.layers.Deconvolution(net.decoding3_s2d_conv3, convolution_param=dict(num_output=1, kernel_size=4, stride=4), param=[dict(lr_mult=1, decay_mult=1)])
+        net.deconv3_d2s = caffe.layers.Deconvolution(net.decoding3_d2s_conv3, convolution_param=dict(num_output=1, kernel_size=4, stride=4), param=[dict(lr_mult=1, decay_mult=1)])
 
-        net.deconv4_s2d = caffe.layers.Deconvolution(net.decoding4_s2d_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])
-        net.deconv4_d2s = caffe.layers.Deconvolution(net.decoding4_d2s_conv3, convolution_param=dict(num_output=1, kernel_size=2, stride=2), param=[dict(lr_mult=1, decay_mult=1)])        # Fusion
+        net.deconv4_s2d = caffe.layers.Deconvolution(net.decoding4_s2d_conv3, convolution_param=dict(num_output=1, kernel_size=8, stride=8), param=[dict(lr_mult=1, decay_mult=1)])
+        net.deconv4_d2s = caffe.layers.Deconvolution(net.decoding4_d2s_conv3, convolution_param=dict(num_output=1, kernel_size=8, stride=8), param=[dict(lr_mult=1, decay_mult=1)])        # Fusion
         net.fusion1 = caffe.layers.Concat(net.decoding1_s2d_conv3, net.decoding1_d2s_conv3, axis=1)
-        net.fusion2 = caffe.layers.Concat(net.decoding2_s2d_conv3, net.decoding2_d2s_conv3, axis=1)
-        net.fusion3 = caffe.layers.Concat(net.decoding3_s2d_conv3, net.decoding3_d2s_conv3, axis=1)
-        net.fusion4 = caffe.layers.Concat(net.decoding4_s2d_conv3, net.decoding4_d2s_conv3, axis=1)
+        net.fusion2 = caffe.layers.Concat(net.deconv2_s2d, net.deconv2_d2s, axis=1)
+        net.fusion3 = caffe.layers.Concat(net.deconv3_s2d, net.deconv3_d2s, axis=1)
+        net.fusion4 = caffe.layers.Concat(net.deconv4_s2d, net.deconv4_d2s, axis=1)
         net.fusion5 = caffe.layers.Concat(net.fusion1, net.fusion2, axis=1)
         net.fusion6 = caffe.layers.Concat(net.fusion5, net.fusion3, axis=1)
         net.fusion7 = caffe.layers.Concat(net.fusion6, net.fusion4, axis=1)
@@ -435,7 +435,7 @@ def main_train():
     #with open(test_prototxt_path, 'w') as f:
     #    f.write(str(network(args.test_lmdb, args.test_gt_lmdb, 1)))
     
-    tools.prototxt.train2deploy(train_prototxt_path, (1, 3, 481, 321), deploy_prototxt_path)
+    tools.prototxt.train2deploy(train_prototxt_path, (1, 3, 480, 320), deploy_prototxt_path)
 
 
     prototxt_solver = args.working_directory + '/solver.prototxt'
@@ -445,14 +445,14 @@ def main_train():
         'test_initialization': 'false', # no testing
         'test_iter': 0, # no testing
         'test_interval': 100000,
-        'base_lr': 0.001,
+        'base_lr': 0.05,
         'lr_policy': 'step',
-        'gamma': 0.01,
+        'gamma': 0.001,
         'stepsize': 1000,
         'display': 100,
         'max_iter': 1000,
         'momentum': 0.95,
-        'weight_decay': 0.005,
+        'weight_decay': 0.001,
         'snapshot': 0, # only at the end
         'snapshot_prefix': args.working_directory + '/snapshot',
         'solver_mode': 'CPU'
