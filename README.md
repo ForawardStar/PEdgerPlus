@@ -28,6 +28,8 @@ If you want to test our pre-trained model, change the data path of testing image
 
 ```python test_edge.py```
 
+Our pre-trained models are placed in the folder "models/", the relative path of which is written in "test_edge.py" 
+
 # Evaluation
 The matlab code for evaluation can be downloaded in https://www2.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/resources.html. Before evaluation, the non-maximum suppression should be done through running ``edge_nms.m" in https://github.com/yun-liu/RCF.  The codes for plotting Precision-Recall curves are in https://github.com/yun-liu/plot-edge-pr-curves.
 
